@@ -12,6 +12,9 @@ import Log
 
 
 
+__PRINT_URLS = False
+
+
 def scrape_SP500():
     '''Scrapes a list of Stocks in the S&P500.'''
     page = requests.get('https://en.wikipedia.org/wiki/List_of_S%26P_500_companies')
@@ -61,13 +64,16 @@ def scrape_NYSE():
         company_name = entry[1]
         stocks.append(StockData.Stock(ticker,company_name))
 
-def scrape_market_dates(start_date=MiscInfo.FIRST_MARKET_DATE):
+def scrape_market_dates(start_date=StockData.createSDate(MiscInfo.FIRST_MARKET_DATE)):
     '''Scrapes the SDates for which the stock market was open using several old
         reference stocks. Returns list in ascending order.'''
     dates = []
     today = StockData.createSDate(time.strftime("%Y-%m-%d"))
     # populate dates with first stock
+    print "initial sd: ",start_date
     dd = scrape_dailydata(StockData.Stock(MiscInfo.MARKET_DATE_REFERENCE_STOCKS[0],""),start_date=start_date,end_date=today)
+    if dd is None:
+        return None
     for day in dd:
         dates.append(day.date)
     # assert that other stocks' dates agree
@@ -90,10 +96,17 @@ def scrape_dailydata(stock, start_date=None, end_date=Database.get_last_market_d
         raise TypeError("'end_date' must be of type SDate")
     if start_date is None:
         if stock.last_update is None:
-            start_date = MiscInfo.FIRST_MARKET_DATE
+            start_date = StockData.createSDate(MiscInfo.FIRST_MARKET_DATE)
         else:
             start_date = stock.last_update
-    return __google_scrape_dailydata(stock, start_date, end_date)
+    print start_date, end_date
+    if start_date == end_date:
+        return None
+    try:
+        return __google_scrape_dailydata(stock, start_date, end_date)
+    except:
+        Log.log_error("Error parsing: {}".format(stock))
+        return None
 
 
 # Google will be used to scrape stock data
@@ -129,7 +142,8 @@ def __google_scrape_dailydata(stock, start_date, end_date):
             end_mon = end_date.month
         stock.ticker = __google_encode_chars(stock.ticker)
         url = "https://www.google.com/finance/historical?output=csv&q={0}&startdate={1}+{2}+{3}&enddate={4}+{5}+{6}".format(stock.ticker,start_mon,start_day,year,end_mon,end_day,year)
-        print "URL ",url
+        if __PRINT_URLS:
+            print "URL: ",url
         page = requests.get(url)
         prices = csv.reader(page.text.splitlines())
         skipfirst = True

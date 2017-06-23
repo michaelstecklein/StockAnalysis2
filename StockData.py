@@ -37,7 +37,7 @@ class SDate:
 		self.month = month
 		self.day = day
 		self.year = year
-		self.day_number = Database.get_day_number(self.getDate())
+		self.day_number = Database.get_day_number(self.getDate(), floor=True)
 		
 	def __str__(self):
 		return self.getDate()

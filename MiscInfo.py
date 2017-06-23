@@ -1,8 +1,6 @@
 '''
 @author: michaelstecklein
 '''
-import StockData
-
 
 
 SP500 = "S&P500"
@@ -59,5 +57,5 @@ INDEXFUNDS =	[
 		'XLE'  # energy ETF
 		];
 		
-FIRST_MARKET_DATE = StockData.SDate(1,3,1978) # first date recorded by google finance
+FIRST_MARKET_DATE = "1978-01-03" # first date recorded by google finance
 MARKET_DATE_REFERENCE_STOCKS = ('IBM','KO','GE')

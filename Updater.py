@@ -6,6 +6,7 @@ import StockData
 import Scraper
 import MiscInfo
 import RSI
+import Log
 
 
 
@@ -42,6 +43,8 @@ def update_stock_dates():
         up to today.'''
     last_update = Database.get_last_market_date()
     dates = Scraper.scrape_market_dates(start_date=last_update)
+    if dates is None:
+        return
     if last_update is not None:
         dates = dates[1:] # first date is already in database
     for date in dates:
@@ -50,6 +53,9 @@ def update_stock_dates():
 def __update_prices(stocks):
     for stock in stocks:
         price_history = Scraper.scrape_dailydata(stock)
+        if price_history is None:
+            return
+        Log.log("Updating prices for {}".format(stock))
         for dailydata in price_history:
             Database.add_dailydata(dailydata)
         if stock.first_data_date is None or stock.first_data_date is "0000-00-00": # update first_data_date if needed

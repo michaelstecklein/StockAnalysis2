@@ -27,9 +27,6 @@ Updater.update_portfolio()
 Log.log_segment("Updating stock data in DailyData table")
 Updater.update_stock_prices()
 
-# Database updates done
-Log.log_segment("Database setup and update completed")
-
 # Update indicators
 Log.log_segment("Updating indicators")
 Updater.update_indicators()

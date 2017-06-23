@@ -33,7 +33,7 @@ class Database:
         self.__startup()
         Log.log_segment("Updating/creating database")
         self.__create()
-        Log.log("done updating/creating database")
+        Log.log("Done updating/creating database")
         
     def createTable(self, table):
         self.tables.append(table)
@@ -306,7 +306,7 @@ def add_dailydata(dd):
 def get_stock(ticker):
     '''Returns a Stock object provided the stock's of index fund's ticker.'''
     table = __get_stockindexfund_table(ticker)
-    res = __select_all(table,where="ticker='{}'".format(ticker))
+    res = __select_all(table,where="ticker='{}'".format(ticker))[0]
     if table is __STOCKS_TABLE_NAME:
         return __format_stock_res(res)
     else:
@@ -335,37 +335,42 @@ def get_dailydata(stock,date=None):
         raise TypeError("'stock' must be of time Stock")
     if date != None and not isinstance(date, StockData.SDate):
         raise TypeError("'date' must be of type SDate")
-    if date is None:
-        where = None
-    else: 
-        where = "date='{}'".format(date)
+    where = "ticker='{}' ".format(stock.ticker)
+    if date is not None:
+        where += "date='{}'".format(date)
     res = __select_all(__DAILYDATA_TABLE_NAME, where=where, restrictions="ORDER BY date ASC")
     dd = []
     for entry in res:
-        dd.append(StockData.SDailyData(get_stock(entry[0]),entry[1],entry[2],entry[3],
-                                       entry[4],entry[5],entry[6]))
+        print "ENTRY ",entry
+        dd.append(StockData.SDailyData(get_stock(entry[0]),StockData.createSDate(entry[1]),entry[2],
+                                       entry[3],entry[4],entry[5],entry[6]))
     if date != None:
         return dd[0]
     return dd
     
 def get_first_market_date():
     '''Returns the first SDate for which the market was open'''
-    res = __select('date',__MARKETDATES_TABLE_NAME,restrictions='ORDER BY day_number ASC LIMIT 1')
-    return StockData.createSDate(str(res[0][0]))
+    res = __single(__select('date',__MARKETDATES_TABLE_NAME,restrictions='ORDER BY day_number ASC LIMIT 1'))
+    return StockData.createSDate(str(res))
     
 def get_last_market_date():
     '''Returns the last SDate for which the market was open'''
-    res = __select('date',__MARKETDATES_TABLE_NAME,restrictions='ORDER BY day_number DESC LIMIT 1')
+    res = __single(__select('date',__MARKETDATES_TABLE_NAME,restrictions='ORDER BY day_number DESC LIMIT 1'))
     if res is None:
         return None
-    return StockData.createSDate(str(res[0][0]))
+    return StockData.createSDate(str(res))
 
-def get_day_number(date):
-    num = __select('day_number',__MARKETDATES_TABLE_NAME,where="date='{}'".format(date))
-    return num
+def get_day_number(date, floor=False):
+    num = __single(__select('day_number',__MARKETDATES_TABLE_NAME,where="date='{}'".format(date)))
+    if num is None:
+        if not floor:
+            return None
+        else: # round to the previous day
+            num = __single(__select('day_number',__MARKETDATES_TABLE_NAME,where="date<='{}'".format(date),restrictions="ORDER BY date DESC LIMIT 1"))
+    return int(num)
 
 def get_day_for_day_number(day_number):
-    return __select("date",__MARKETDATES_TABLE_NAME,where="day_number='{}'".format(day_number))
+    return __single(__select("date",__MARKETDATES_TABLE_NAME,where="day_number='{}'".format(day_number)))
 
 def get_ticker_info(ticker):
     '''Returns a Stock object for the provided ticker. May either be a stock or index fund.'''
@@ -394,10 +399,10 @@ def set_first_data_date(stock, date):
 def set_indices(stock,index,truefalse): # TODO check this method!
     if not isinstance(stock, StockData.Stock):
         raise TypeError("'stock' must be of time Stock")
-    res = __select('indices',__STOCKS_TABLE_NAME,where="ticker='{}'".format(stock.ticker))
+    res = __single(__select('indices',__STOCKS_TABLE_NAME,where="ticker='{}'".format(stock.ticker)))
     if res is None:
         return
-    indices = res[0][0] # comes packed in two tuples
+    indices = res # comes packed in two tuples
     if truefalse and index not in indices:
         indices += "," + index
     if not truefalse and index in indices:
@@ -460,7 +465,7 @@ def __set_stockindexfund_value(stock, attr, value):
 
 def __format_stock_res(res):
     return StockData.Stock(res[0],company=res[1],indices=res[2],on_watchlist=res[3],
-                in_portfolio=res[4],first_data_date=res[5],last_update=res[6])
+                in_portfolio=res[4],first_data_date=StockData.createSDate(res[5]),last_update=StockData.createSDate(res[6]))
     
 def __format_indexfund_res(res):
     return StockData.Stock(res[0],on_watchlist=res[1],in_portfolio=res[2],
@@ -468,6 +473,11 @@ def __format_indexfund_res(res):
     
 def __reset_autoincrement(table):
     database.query("ALTER TABLE {0} AUTO_INCREMENT = 1;".format(table))
+    
+def __single(res):
+    if res is None:
+        return None
+    return res[0][0]
         
 def __check_empty_query(qry):
     if len(qry)==0:
@@ -500,16 +510,22 @@ def rsi_get_defaults(stock):
     if not isinstance(stock, StockData.Stock):
         raise TypeError("'stock' must be of time Stock")
     res = __select("date", __RSI_TABLE_NAME, where="RSI='{}' AND ticker='{}'".format(RSI.DEFAULT_VALUE,stock.ticker), restrictions="ORDER BY date ASC")
+    if res is None:
+        return res
     dates = []
     for date in res:
-        dates.append(StockData.createSDate(date))
+        dates.append(StockData.createSDate(date[0]))
     return dates
 
-def rsi_get(date):
-    '''Returns the RSI value for the provided SDate.'''
+def rsi_get(stock,date):
+    '''Returns the RSI value for the provided Stock and SDate.'''
+    if not isinstance(stock, StockData.Stock):
+        raise TypeError("'stock' must be of type Stock")
     if not isinstance(date, StockData.SDate):
         raise TypeError("'date' must be of type SDate")
-    res = __select("RSI", __RSI_TABLE_NAME, where="date='{}'".format(date), restrictions="ORDER BY date DESC LIMIT 1")
+    res = __single(__select("RSI", __RSI_TABLE_NAME, where="ticker='{}' AND date='{}'".format(stock.ticker,date), restrictions="ORDER BY date DESC LIMIT 1"))
+    if res is None:
+        return None
     return float(res)
 
 def rsi_get_previous_count(stock,date):
@@ -517,12 +533,19 @@ def rsi_get_previous_count(stock,date):
         raise TypeError("'stock' must be of time Stock")
     if not isinstance(date, StockData.SDate):
         raise TypeError("'date' must be of type SDate")
-    res = __select("COUNT(*)", __RSI_TABLE_NAME, where="ticker='{}' AND date<'{}'")
+    res = __single(__select("COUNT(*)", __RSI_TABLE_NAME, where="ticker='{}' AND date<'{}'".format(stock.ticker,date)))
     return int(res)
+
+def rsi_get_close_history(stock, date, num_days_preceding):
+    res = __select("close",__DAILYDATA_TABLE_NAME,where="ticker='{}' AND date<='{}'".format(stock.ticker,date),restrictions="ORDER BY date DESC LIMIT {}".format(num_days_preceding))
+    closes = []
+    for i in range(num_days_preceding):
+        closes.append(res[i][0])
+    return closes
 
 def rsi_get_metadata(stock,date):
     '''Returns a RSI.Metadata object for the given Stock and SDate.'''
-    res = __select_all(__RSI_TABLE_NAME,where="ticker='{}' AND date='{}'".format(stock,date))
+    res = __select_all(__RSI_TABLE_NAME,where="ticker='{}' AND date='{}'".format(stock,date))[0]
     return RSI.Metadata(res[0],res[1],res[2],res[3],res[4])
 
 def rsi_set_metadata(metadata):
