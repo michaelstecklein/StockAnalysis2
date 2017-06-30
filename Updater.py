@@ -1,6 +1,8 @@
 '''
 @author: michaelstecklein
 '''
+import os.path
+import csv
 import Database
 import StockData
 import Scraper
@@ -54,18 +56,33 @@ def __update_prices(stocks):
     for stock in stocks:
         price_history = Scraper.scrape_dailydata(stock)
         if price_history is None:
-            return
+            continue
         Log.log("Updating prices for {}".format(stock))
         for dailydata in price_history:
             Database.add_dailydata(dailydata)
         if stock.first_data_date is None or stock.first_data_date is "0000-00-00": # update first_data_date if needed
             Database.set_first_data_date(stock, price_history[0].date)
         Database.set_last_update(stock, Database.get_last_market_date()) # update last_update
+        
+def __assert_dailydata(stocks):
+    '''Make sure that all market dates after the first data date for any stock have data for that stock. The scraper often
+        leaves holes in the data. If a hole is found, look for manually downloaded data in ./manualdata/<ticker>.csv. If doesn't
+        exist, throw an error.'''
+    market_dates = Database.get_market_dates()
+    for stock in stocks:
+        for date in market_dates:
+            if date.day_number >= stock.first_data_date.day_number:
+                if Database.get_dailydata(stock, date=date) is None:
+                    dd = Scraper.get_manual_dailydata(stock,date)
+                    if dd is None:
+                        Log.log_error("No data found for {} {}. Please manually add data to ./manualdata/<ticker>.csv", shutdown=True)
+                    Database.add_dailydata(dd)
 
 def update_stock_prices():
     '''Update the daily data for all stocks on all market dates.'''
     stocks = Database.get_stocks()
     __update_prices(stocks)
+    __assert_dailydata(stocks)
 
 def update_indexfund_prices():
     '''Update the daily data for all index funds on all market dates. If an index fund is not listed

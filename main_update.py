@@ -1,10 +1,11 @@
 '''
 @author: michaelstecklein
 '''
-import Log
 import Email
+import Log
 import Updater
-import RSI
+import Database
+from RSI import RSIResults
 
 
 # Populate Stocks table
@@ -24,7 +25,7 @@ Log.log_segment("Updating portfolio")
 Updater.update_portfolio()
 
 # Populate DailyData table
-Log.log_segment("Updating stock data in DailyData table")
+Log.log_segment("Updating dailydata table")
 Updater.update_stock_prices()
 
 # Update indicators
@@ -32,17 +33,11 @@ Log.log_segment("Updating indicators")
 Updater.update_indicators()
 
 # Email RSI results
-rsi_results = RSI.RSIResults().get_results()
+rsi_results = RSIResults().get_results()
 Log.log(rsi_results)
-Email.send_update_email(rsi_results + Log.get_errors_str())
+Email.send_update_email(Database.get_last_market_date(), rsi_results)
+errors = Log.get_errors_str()
+if errors is not "":
+    Email.send_errors_email(errors)
 
-# # Get results
-# Log.log_segment("Getting results")
-# rsi = RSIResults()
-# indicator_results = rsi.get_results()
-# log(indicator_results)
-# 
-# # Send email
-# Log.log_segment("Sending email")
-# Email.send_update_email(indicator_results+get_errors_str())
 Log.log("Done")

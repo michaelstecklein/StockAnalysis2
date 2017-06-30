@@ -2,6 +2,7 @@
 @author: michaelstecklein
 '''
 import requests
+import os.path
 import csv
 import time
 from bs4 import BeautifulSoup
@@ -12,7 +13,7 @@ import Log
 
 
 
-__PRINT_URLS = False
+__PRINT_URLS = True
 
 
 def scrape_SP500():
@@ -99,14 +100,28 @@ def scrape_dailydata(stock, start_date=None, end_date=Database.get_last_market_d
             start_date = StockData.createSDate(MiscInfo.FIRST_MARKET_DATE)
         else:
             start_date = stock.last_update
-    print start_date, end_date
     if start_date == end_date:
         return None
-    try:
-        return __google_scrape_dailydata(stock, start_date, end_date)
-    except:
-        Log.log_error("Error parsing: {}".format(stock))
+    return __google_scrape_dailydata(stock, start_date, end_date)
+
+def __manual_csv_path(stock):
+    '''Manually download csv's from Yahoo Finance. Returns the opened file.'''
+    file_path = "manualdata/{}.csv".format(stock.ticker)
+    if not os.path.isfile(file_path):
         return None
+    return file_path
+        
+def get_manual_dailydata(stock, date):
+    '''Manually download csv's from Yahoo Finance. Returns one SDailyData.'''
+    file_path = __manual_csv_path(stock)
+    if file_path is None:
+        return None
+    with open(file_path,"w") as csvfile:
+        dailydata = csv.reader(csvfile.readlines())
+        for dd in dailydata:
+            if str(dd[0]) == str(date):
+                return StockData.SDailyData(stock,StockData.createSDate(str(dd[0])),float(dd[1]),float(dd[2]),float(dd[3]),float(dd[4]),int(dd[6]))
+    return None
 
 
 # Google will be used to scrape stock data
@@ -141,33 +156,51 @@ def __google_scrape_dailydata(stock, start_date, end_date):
             end_day = end_date.day
             end_mon = end_date.month
         stock.ticker = __google_encode_chars(stock.ticker)
-        url = "https://www.google.com/finance/historical?output=csv&q={0}&startdate={1}+{2}+{3}&enddate={4}+{5}+{6}".format(stock.ticker,start_mon,start_day,year,end_mon,end_day,year)
+        url_outline = "https://www.google.com/finance/historical?output=csv&q={}%3A{}&startdate={}+{}+{}&enddate={}+{}+{}"
+        # try NASDAQ stock exchange first
+        url = url_outline.format("NASDAQ",stock.ticker,start_mon,start_day,year,end_mon,end_day,year)
+        page = requests.get(url)
+        # Check page responses and try different stock exchanges for a good response. 'Response [4xx]' are client (user) errors
+        if "Response [4" in str(page): # if NASDAQ fails, try NYSE
+            url = url_outline.format("NYSE",stock.ticker,start_mon,start_day,year,end_mon,end_day,year)
+            page = requests.get(url)
+        if "Response [4" in str(page): # if NYSE fails, try none
+            url = url_outline.replace("%3A","").format("",stock.ticker,start_mon,start_day,year,end_mon,end_day,year)
+            page = requests.get(url)
+        if "Response [4" in str(page): # all failed, try manual csv file
+            csvpath = __manual_csv_path(stock)
+            if csvpath is None:
+                Log.log_error("Error scraping Google for {} {} to {}, please add manual .csv for the stock.".format(stock,start_date,end_date), shutdown=True)
+            f = open(csvpath, "r")
+            page = f.readlines()
+            f.close()
         if __PRINT_URLS:
             print "URL: ",url
-        page = requests.get(url)
         prices = csv.reader(page.text.splitlines())
         skipfirst = True
         for p in prices:
             if skipfirst:
                 skipfirst = False
                 continue
-            p = __google_replace_dashes(p)
-            days_price = StockData.SDailyData(stock,__google_format_date(p[0]),float(p[1]),float(p[2]),float(p[3]),float(p[4]),int(p[5]))
-            thisyearsdata.append(days_price)
+            date = __google_format_date(p[0])
+            if __google_invalid_price(stock, p):
+                dd = get_manual_dailydata(stock,date)
+                if dd is None:
+                    continue # skip
+            else:
+                dd = StockData.SDailyData(stock,date,float(p[1]),float(p[2]),float(p[3]),float(p[4]),int(p[5]))
+            thisyearsdata.append(dd)
         thisyearsdata.reverse() # data comes descending by date
         dailydata.extend(thisyearsdata)
     return dailydata
 
-def __google_replace_dashes(price):
-    '''If data is unavailable, Google places a '-' in its place. Replace these with zeros.'''
-    ret = []
+def __google_invalid_price(stock, price):
+    '''If data is unavailable, Google places a '-' in its place. These are useless...'''
     for p in price:
         if p is '-':
-            Log.log_error("Missing data for scraped price: {}".format(price))
-            ret.append('0')
-        else:
-            ret.append(p)
-    return ret
+            #Log.log_error("Google missing data for scraped price: {} {}".format(stock,price))
+            return True
+    return False
 
 def __google_encode_chars(url):
     '''Special characters need to be encoded for URLs.'''

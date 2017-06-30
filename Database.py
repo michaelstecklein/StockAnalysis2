@@ -6,7 +6,8 @@ import os
 import warnings
 import MySQLdb
 import Log
-import RSI
+from RSI import Metadata as RSIMetadata
+from RSI import DEFAULT_VALUE as RSI_DEFAULT_VALUE
 import StockData
 
 
@@ -250,9 +251,9 @@ if database == None:
     rsiTable \
         .addAttribute('ticker', VARCHAR(5), notnull=True, comboprimarykey=True) \
         .addAttribute('date', DATE, notnull=True, comboprimarykey=True) \
-        .addAttribute('RSI', FLOAT, default=RSI.DEFAULT_VALUE) \
-        .addAttribute('avg_gain', FLOAT, default=RSI.DEFAULT_VALUE) \
-        .addAttribute('avg_loss', FLOAT, default=RSI.DEFAULT_VALUE)
+        .addAttribute('RSI', FLOAT, default=RSI_DEFAULT_VALUE) \
+        .addAttribute('avg_gain', FLOAT, default=RSI_DEFAULT_VALUE) \
+        .addAttribute('avg_loss', FLOAT, default=RSI_DEFAULT_VALUE)
     database.createTable(rsiTable)
         
 """ -----------------------------------------------------------------------------------------------------------
@@ -337,28 +338,35 @@ def get_dailydata(stock,date=None):
         raise TypeError("'date' must be of type SDate")
     where = "ticker='{}' ".format(stock.ticker)
     if date is not None:
-        where += "date='{}'".format(date)
+        where += "AND date='{}'".format(date)
     res = __select_all(__DAILYDATA_TABLE_NAME, where=where, restrictions="ORDER BY date ASC")
     dd = []
     for entry in res:
-        print "ENTRY ",entry
         dd.append(StockData.SDailyData(get_stock(entry[0]),StockData.createSDate(entry[1]),entry[2],
                                        entry[3],entry[4],entry[5],entry[6]))
     if date != None:
         return dd[0]
     return dd
+
+def get_market_dates():
+    '''Returns a list of all market dates ordered by date ascending.'''
+    dates = []
+    res = __select('date',__MARKETDATES_TABLE_NAME,restrictions='ORDER BY day_number ASC')
+    for entry in res:
+        dates.append(StockData.createSDate(entry[0]))
+    return dates
     
 def get_first_market_date():
     '''Returns the first SDate for which the market was open'''
     res = __single(__select('date',__MARKETDATES_TABLE_NAME,restrictions='ORDER BY day_number ASC LIMIT 1'))
-    return StockData.createSDate(str(res))
+    return StockData.createSDate(res)
     
 def get_last_market_date():
     '''Returns the last SDate for which the market was open'''
     res = __single(__select('date',__MARKETDATES_TABLE_NAME,restrictions='ORDER BY day_number DESC LIMIT 1'))
     if res is None:
         return None
-    return StockData.createSDate(str(res))
+    return StockData.createSDate(res)
 
 def get_day_number(date, floor=False):
     num = __single(__select('day_number',__MARKETDATES_TABLE_NAME,where="date='{}'".format(date)))
@@ -367,6 +375,8 @@ def get_day_number(date, floor=False):
             return None
         else: # round to the previous day
             num = __single(__select('day_number',__MARKETDATES_TABLE_NAME,where="date<='{}'".format(date),restrictions="ORDER BY date DESC LIMIT 1"))
+    if num is None:
+        return None
     return int(num)
 
 def get_day_for_day_number(day_number):
@@ -503,13 +513,13 @@ def __check_empty_query(qry):
 def rsi_add_default_entries():
     '''Insert default entries for all market dates that are not represented in the RSI table.'''
     database.query("INSERT IGNORE INTO {} (ticker, date, RSI, avg_gain, avg_loss) SELECT ticker, date, {}, {}, {} FROM {};".format(
-            __RSI_TABLE_NAME,RSI.DEFAULT_VALUE,RSI.DEFAULT_VALUE,RSI.DEFAULT_VALUE,__DAILYDATA_TABLE_NAME))
+            __RSI_TABLE_NAME,RSI_DEFAULT_VALUE,RSI_DEFAULT_VALUE,RSI_DEFAULT_VALUE,__DAILYDATA_TABLE_NAME))
     
 def rsi_get_defaults(stock):
     '''Return a list of all SDates who RSI value is the default value for the provided stock, sorted ascending.'''
     if not isinstance(stock, StockData.Stock):
         raise TypeError("'stock' must be of time Stock")
-    res = __select("date", __RSI_TABLE_NAME, where="RSI='{}' AND ticker='{}'".format(RSI.DEFAULT_VALUE,stock.ticker), restrictions="ORDER BY date ASC")
+    res = __select("date", __RSI_TABLE_NAME, where="RSI='{}' AND ticker='{}'".format(RSI_DEFAULT_VALUE,stock.ticker), restrictions="ORDER BY date ASC")
     if res is None:
         return res
     dates = []
@@ -545,8 +555,17 @@ def rsi_get_close_history(stock, date, num_days_preceding):
 
 def rsi_get_metadata(stock,date):
     '''Returns a RSI.Metadata object for the given Stock and SDate.'''
-    res = __select_all(__RSI_TABLE_NAME,where="ticker='{}' AND date='{}'".format(stock,date))[0]
-    return RSI.Metadata(res[0],res[1],res[2],res[3],res[4])
+    res = __select_all(__RSI_TABLE_NAME,where="ticker='{}' AND date='{}'".format(stock,date))
+    if res is None: # rsi entry doesn't exist because dailydata entry doesn't exist
+        Log.log_error("Error getting RSI metadata for {} {}".format(stock,date), shutdown=True)
+#         Log.log_error("Error getting metadata from {} on {}. Inserting data copied from previous day.".format(stock,date))
+#         dd = get_dailydata(stock, date.getPrevious())
+#         dd.date = date
+#         add_dailydata(dd)
+#         rsi_add_default_entries() # add rsi entry for new dailydata
+#         return rsi_get_metadata(stock, date)
+    res = res[0]
+    return RSIMetadata(res[0],res[1],res[2],res[3],res[4])
 
 def rsi_set_metadata(metadata):
     '''Sets the entry for the given Stock and SDate with the provided metadata.'''

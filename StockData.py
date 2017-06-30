@@ -1,3 +1,4 @@
+import datetime
 import Database
 
 
@@ -34,10 +35,10 @@ class SDate:
 		the date (YYYY-MM-DD) and the 'stock day', which is the day number since the beginning
 		of the database's memory.'''
 	def __init__(self, month, day, year):
-		self.month = month
-		self.day = day
-		self.year = year
-		self.day_number = Database.get_day_number(self.getDate(), floor=True)
+		self.month = int(month)
+		self.day = int(day)
+		self.year = int(year)
+		self.day_number = int(Database.get_day_number(self.getDate(), floor=True))
 		
 	def __str__(self):
 		return self.getDate()
@@ -94,7 +95,10 @@ def createSDate(date):
 	'''Given a string YYYY-MM-DD or an integer day number, creates the respective SDate object.'''
 	if date is None:
 		return None
-	date = str(date)
+	if isinstance(date, datetime.date):
+		date = date.strftime("%Y-%m-%d")
+	else:
+		date = str(date)
 	if '-' in date: # YYYY-MM-DD str
 		splt = date.split('-')
 		year = int(splt[0])

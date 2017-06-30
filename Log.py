@@ -1,5 +1,6 @@
 import os
 import datetime
+import Email
 
 
 
@@ -32,15 +33,19 @@ errors = []
 def log_error(err_msg, shutdown=False):
 	__log("ERROR ------------------------------------------------------")
 	__log(err_msg)
-	__log("------------------------------------------------------------")
 	if shutdown:
-		raise RuntimeError("Error occurred. See log error above.")
-	else:
-		errors.append(err_msg)
+		__log("Shutting down...")
+	__log("------------------------------------------------------------")
+	errors.append(err_msg)
+	if shutdown:
+		Email.send_errors_email(get_errors_str())
+		raise RuntimeError("Logged an error. See error message above.")
 
 
 
 def get_errors_str():
+	if len(errors)==0:
+		return ""
 	errors_str = "\n";
 	for err in errors:
 		errors_str += err + "\n"
