@@ -16,8 +16,8 @@ misc_stocks = {
 
 WATCHLIST = 	[
 		'FB',
-# 		'USO',
-# 		'UCO',
+ 		'USO',
+ 		'UCO',
 		'AAPL',
 		'GOOG',
 		'TSLA',
@@ -30,8 +30,8 @@ WATCHLIST = 	[
 		];
 
 PORTFOLIO = 	[
-# 		'USO',
-# 		'UCO',
+ 		'USO',
+ 		'UCO',
 		'F',
 		];
 
@@ -41,20 +41,20 @@ INDEXFUNDS =	[
 		#'^IXIC', # NASDAQ composite
 		#'^DJI',  # DOW 30
 		#'^VIX',# volatility (S&P500)
-# 		'SPY', # S&P500 ETF trust
-# 		'USO', # oil ETF
-# 		'UCO', # short-term oil ETF
-# 		'EDV', # long-term treasury ETF
-# 		'BND', # total bond ETF
-# 		'VTI', # total market ETF
-# 		'VOO', # S&P500 ETF
-# 		'VO',  # medium cap ETF
-# 		'VB',  # small cap ETF
-# 		'VXUS',# total international ETF
-# 		'XIV', # inverse ^VIX
-# 		'USL', # US oil long
-# 		'VHT', # health care ETF
-# 		'XLE'  # energy ETF
+ 		'SPY', # S&P500 ETF trust
+ 		'USO', # oil ETF
+ 		'UCO', # short-term oil ETF
+ 		'EDV', # long-term treasury ETF
+ 		'BND', # total bond ETF
+ 		'VTI', # total market ETF
+ 		'VOO', # S&P500 ETF
+ 		'VO',  # medium cap ETF
+ 		'VB',  # small cap ETF
+ 		'VXUS',# total international ETF
+ 		'XIV', # inverse ^VIX
+ 		'USL', # US oil long
+ 		'VHT', # health care ETF
+ 		'XLE'  # energy ETF
 		];
 		
 FIRST_MARKET_DATE = "1978-01-03" # first date recorded by google finance
