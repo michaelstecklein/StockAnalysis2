@@ -32,9 +32,7 @@ class Database:
         self.tables = []
         warnings.filterwarnings('ignore', category=MySQLdb.Warning) # ignore warnings
         self.__startup()
-        Log.log_segment("Updating/creating database")
         self.__create()
-        Log.log("Done updating/creating database")
         
     def createTable(self, table):
         self.tables.append(table)
@@ -69,7 +67,7 @@ class Database:
                 connection.commit()
             return cursor.fetchall()
         except MySQLdb.Error, e:
-            Log.log_error("""Error occurred when executing command "{0}"\n{1}""".format(qry, e), shutdown=True)
+            Log.log_error("""{}: Error occurred when executing command "{}"\n{}""".format(self.name,qry, e), shutdown=True)
 
 
 
@@ -194,6 +192,8 @@ __MARKETDATES_TABLE_NAME = 'MarketDates'
 __STOCKS_TABLE_NAME = 'Stocks'
 __INDEXFUNDS_TABLE_NAME = 'IndexFunds'
 
+__YAHOO_DATABASE_NAME = 'YahooOld'
+yahoo_database = Database(__YAHOO_DATABASE_NAME, __USERNAME, __PASSWORD)
 
 database = None
 
@@ -325,6 +325,8 @@ def get_indexfunds():
     '''Returns a list of index funds tracked in the database'''
     ret = __select_all(__INDEXFUNDS_TABLE_NAME, None)
     funds = []
+    if ret is None:
+        return None;
     for entry in ret:
         funds.append(__format_indexfund_res(entry))
     return funds
@@ -340,6 +342,8 @@ def get_dailydata(stock,date=None):
     if date is not None:
         where += "AND date='{}'".format(date)
     res = __select_all(__DAILYDATA_TABLE_NAME, where=where, restrictions="ORDER BY date ASC")
+    if res is None:
+        return None
     dd = []
     for entry in res:
         dd.append(StockData.SDailyData(get_stock(entry[0]),StockData.createSDate(entry[1]),entry[2],
@@ -397,6 +401,28 @@ def get_ticker_info(ticker):
     else:
         raise Exception("{} not found in IndexFunds or Stocks tables".format(ticker))
     return stock
+
+def get_Yahoo_dailydata(stock, date):
+    '''Returns an SDailyData object for the provided Stock and date from the old Yahoo database.'''
+    if not isinstance(stock, StockData.Stock):
+        raise TypeError("'stock' must be of time Stock")
+    if date != None and not isinstance(date, StockData.SDate):
+        raise TypeError("'date' must be of type SDate")
+    where = "ticker='{}' ".format(stock.ticker)
+    if date is not None:
+        where += "AND date='{}'".format(date)
+    res = yahoo_database.query("SELECT * FROM DailyData WHERE {} ORDER BY date ASC".format(where))
+    if res is None:
+        return None
+    dd = []
+    for entry in res:
+        dd.append(StockData.SDailyData(get_stock(entry[0]),StockData.createSDate(entry[1]),entry[2],
+                                       entry[3],entry[4],entry[5],entry[6]))
+    if len(dd) == 0:
+        return None
+    if date != None:
+        return dd[0]
+    return dd
     
 def set_first_data_date(stock, date):
     if not isinstance(stock, StockData.Stock):

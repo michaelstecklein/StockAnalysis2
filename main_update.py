@@ -7,6 +7,13 @@ import Updater
 import Database
 from RSI import RSIResults
 
+# TODO
+# - clear out all dailydata for tickers starting w/ 'A'. Some of them have invalid data that I manually copied...oops
+# - add manual data for all stocks w/ entries with a 0 volume, delete those entries, anmd rerun
+# - create function to save all data into csvs
+# - backup databases
+# - create scraper to scrape tables in increments of 30 days for indices
+
 
 # Populate Stocks table
 Log.log_segment("Updating Stocks table")
@@ -27,6 +34,8 @@ Updater.update_portfolio()
 # Populate DailyData table
 Log.log_segment("Updating dailydata table")
 Updater.update_stock_prices()
+Log.log_segment("Asserting dailydata table")
+Updater.assert_stock_prices()
 
 # Update indicators
 Log.log_segment("Updating indicators")

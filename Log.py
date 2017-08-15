@@ -1,4 +1,5 @@
 import os
+import sys
 import datetime
 import Email
 
@@ -40,6 +41,7 @@ def log_error(err_msg, shutdown=False):
 	if shutdown:
 		Email.send_errors_email(get_errors_str())
 		raise RuntimeError("Logged an error. See error message above.")
+		sys.exit(1)
 
 
 

@@ -19,6 +19,7 @@ def update_RSI():
     Database.rsi_add_default_entries()
     stocks = Database.get_stocks()
     for stock in stocks:
+        Log.log("RSI for {}".format(stock))
         defaultdates = Database.rsi_get_defaults(stock)
         # 'get_RSI' will automatically update default dates, so retrieving the last date value will result in updating
         #    all previous RSI values
@@ -27,14 +28,21 @@ def update_RSI():
         get_RSI(stock,defaultdates[len(defaultdates)-1])
         
 def __get_rsi_recursive(stock,date):
+    print "HERE 0"
     count = Database.rsi_get_previous_count(stock,date)
+    print "HERE 1"
     if count < __N: # one of first N entries
+        print "HERE 2"
         metadata = Metadata(stock,date,NULL_VALUE,NULL_VALUE,NULL_VALUE)
     elif count == __N: # first RSI value
+        print "HERE 3"
         metadata = __calculate_first_RSI(stock,date)
     else:
+        print "HERE 4"
         metadata = __calculate_RSI(stock,date)
+    print "HERE 5"
     Database.rsi_set_metadata(metadata)
+    print "HERE 6"
     return metadata.rsi
 
 def __get_rsi_iterative(stock,date):
@@ -43,7 +51,6 @@ def __get_rsi_iterative(stock,date):
         return NULL_VALUE
     first_day = first_data_date.day_number
     for day_num in range(first_day,date.day_number): # fill in previous RSI values
-        print "------------ day_num: ",day_num,"   first:",first_day,"   last:",date.day_number
         __get_rsi_recursive(stock,StockData.createSDate(day_num))
     return __get_rsi_recursive(stock,date)
     
@@ -60,7 +67,7 @@ def get_RSI(stock, date):
     try:
         rsi = __get_rsi_recursive(stock,date)
     except (RuntimeError):
-        Log.log("Using get_RSI iterative method")
+        #Log.log("Using get_RSI iterative method")
         rsi = __get_rsi_iterative(stock,date)
     return rsi
 
@@ -100,10 +107,15 @@ def __calculate_first_RSI(stock,date):
     return Metadata(stock,date,rsi,avg_gain,avg_loss)
 
 def __calculate_RSI(stock,date): # not first RSI value
+    print "HERE a"
     prev_date = date.getPrevious()
+    print "HERE b"
     get_RSI(stock, prev_date) # force previous RSI's calculation
+    print "HERE c"
     prev_meta = Database.rsi_get_metadata(stock,prev_date)
+    print "HERE d"
     closes = Database.rsi_get_close_history(stock, date, 2)
+    print "HERE e"
     diff = closes[0]-closes[1]
     if diff > 0:
         curr_gain = diff
@@ -118,6 +130,7 @@ def __calculate_RSI(stock,date): # not first RSI value
     else:
         rs = avg_gain / avg_loss
         rsi = 100 - (100 / (1 + rs))
+    print "HERE f"
     return Metadata(stock,date,rsi,avg_gain,avg_loss)
     
     

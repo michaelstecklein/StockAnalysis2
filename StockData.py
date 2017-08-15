@@ -38,13 +38,11 @@ class SDate:
 		self.month = int(month)
 		self.day = int(day)
 		self.year = int(year)
-		self.day_number = int(Database.get_day_number(self.getDate(), floor=True))
-		
-	def __str__(self):
-		return self.getDate()
-	
-	def __eq__(self, other):
-		return (self.day==other.day) and (self.month==other.month) and (self.year==other.year)
+		db_day_number = Database.get_day_number(self.getDate(), floor=True)
+		if db_day_number is None:
+			self.day_number = None
+		else:
+			self.day_number =  int(db_day_number)
 	
 	def getDate(self):
 		'''Returns the date in a String formated YYYY-MM-DD (for databases).'''
@@ -66,6 +64,36 @@ class SDate:
 		if prev_daynum < 1:
 			return None
 		return createSDate(prev_daynum)
+		
+	def __str__(self):
+		return self.getDate()
+	
+	def __eq__(self, other):
+		return (self.day==other.day) and (self.month==other.month) and (self.year==other.year)
+	
+	def __lt__(self,other):
+		if self.year != other.year:
+			return self.year < other.year
+		if self.month != other.month:
+			return self.month < other.month
+		if self.day != other.day:
+			return self.day < other.day
+		return False
+		
+	def __gt__(self,other):
+		if self.year != other.year:
+			return self.year > other.year
+		if self.month != other.month:
+			return self.month > other.month
+		if self.day != other.day:
+			return self.day > other.day
+		return False
+		
+	def __le__(self,other):
+		return not self.__gt__(other)
+		
+	def __ge__(self,other):
+		return not self.__lt__(other)
 
 
 

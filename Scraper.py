@@ -64,25 +64,60 @@ def scrape_NYSE():
         ticker = entry[0]
         company_name = entry[1]
         stocks.append(StockData.Stock(ticker,company_name))
+        
+def __manual_market_dates(stock,start_date,end_date):
+    csvpath = __manual_csv_path(stock)
+    if csvpath is None:
+        Log.log_error("Error scraping Google for {} {} to {}, please add manual .csv for the stock.".format(stock,start_date,end_date), shutdown=True)
+    f = open(csvpath, "r")
+    page = f.readlines()
+    dates = []
+    for line in page[1:]:
+        p = line.split(",")
+        date = StockData.createSDate(p[0])
+        #if time.strptime(date,"%Y-%m-%d") <= time.strptime(end_date,"%Y-%m-%d") and time.strptime(date,"%Y-%m-%d") >= time.strptime(start_date,"%Y-%m-%d"):
+        if date <= end_date and date >= start_date:
+            dates.append(date) # assuming YYYY-MM-DD format
+    f.close()
+    return dates
+    
+def __online_market_dates(stock,start_date,end_date):
+    '''Not working well for older dates, Google has some date gaps.'''
+    dd = scrape_dailydata(stock,start_date=start_date,end_date=end_date)
+    if dd is None:
+        return None
+    dates = []
+    for day in dd:
+        dates.append(day.date)
+    return dates
+
+def __get_market_dates(stock,start_date,end_date):
+    threshhold_date = StockData.createSDate("2016-01-01")
+    # use manual data for older dates, and go online to scrape newer dates
+    if threshhold_date.day_number < start_date.day_number and threshhold_date.day_number < end_date.day_number:
+        return __online_market_dates(stock,start_date,end_date)
+    elif threshhold_date.day_number > start_date.day_number and threshhold_date.day_number > end_date.day_number:
+        return __manual_market_dates(stock,start_date,end_date)
+    else: # straddles threshhold
+        dates = []
+        dates.extend(__manual_market_dates(stock,start_date,threshhold_date))
+        dates.extend(__online_market_dates(stock,threshhold_date,end_date))
+        return dates
 
 def scrape_market_dates(start_date=StockData.createSDate(MiscInfo.FIRST_MARKET_DATE)):
     '''Scrapes the SDates for which the stock market was open using several old
         reference stocks. Returns list in ascending order.'''
-    dates = []
     today = StockData.createSDate(time.strftime("%Y-%m-%d"))
     # populate dates with first stock
-    print "initial sd: ",start_date
-    dd = scrape_dailydata(StockData.Stock(MiscInfo.MARKET_DATE_REFERENCE_STOCKS[0],""),start_date=start_date,end_date=today)
-    if dd is None:
-        return None
-    for day in dd:
-        dates.append(day.date)
+    dates = __get_market_dates(StockData.Stock(MiscInfo.MARKET_DATE_REFERENCE_STOCKS[0],""),start_date,today)
     # assert that other stocks' dates agree
     for ticker in MiscInfo.MARKET_DATE_REFERENCE_STOCKS[1:]:
         stock = StockData.Stock(ticker,"")
-        dd = scrape_dailydata(stock,start_date=start_date,end_date=today)
-        for day in dd:
-            if day.date not in dates:
+        #dd = scrape_dailydata(stock,start_date=start_date,end_date=today)
+        days = __manual_market_dates(stock,start_date,today)
+        #days = __online_market_dates(stock,start_date,today)
+        for day in days:
+            if day not in dates:
                 Log.log_error("market date {} not in agreement between reference stocks {}".format(day.date,MiscInfo.MARKET_DATE_REFERENCE_STOCKS),shutdown=True)
     return dates
 
@@ -100,7 +135,7 @@ def scrape_dailydata(stock, start_date=None, end_date=Database.get_last_market_d
             start_date = StockData.createSDate(MiscInfo.FIRST_MARKET_DATE)
         else:
             start_date = stock.last_update
-    if start_date == end_date:
+    if start_date > end_date:
         return None
     return __google_scrape_dailydata(stock, start_date, end_date)
 
@@ -116,7 +151,7 @@ def get_manual_dailydata(stock, date):
     file_path = __manual_csv_path(stock)
     if file_path is None:
         return None
-    with open(file_path,"w") as csvfile:
+    with open(file_path,"r") as csvfile:
         dailydata = csv.reader(csvfile.readlines())
         for dd in dailydata:
             if str(dd[0]) == str(date):
@@ -140,6 +175,7 @@ def __google_format_date(date_in):
     return StockData.createSDate(strDate)
 
 def __google_scrape_dailydata(stock, start_date, end_date):
+    time.sleep(1) # to prevent google from block us because we're a computer
     years = range(start_date.year, end_date.year+1)
     dailydata = []
     for i in range(len(years)): # scrape year by year, since google acts weird if we don't
@@ -164,7 +200,10 @@ def __google_scrape_dailydata(stock, start_date, end_date):
         if "Response [4" in str(page): # if NASDAQ fails, try NYSE
             url = url_outline.format("NYSE",stock.ticker,start_mon,start_day,year,end_mon,end_day,year)
             page = requests.get(url)
-        if "Response [4" in str(page): # if NYSE fails, try none
+        if "Response [4" in str(page): # if NYSE fails, try NYSEARCA
+            url = url_outline.format("NYSEARCA",stock.ticker,start_mon,start_day,year,end_mon,end_day,year)
+            page = requests.get(url)
+        if "Response [4" in str(page): # if NYSEARCA fails, try none
             url = url_outline.replace("%3A","").format("",stock.ticker,start_mon,start_day,year,end_mon,end_day,year)
             page = requests.get(url)
         if "Response [4" in str(page): # all failed, try manual csv file
@@ -182,7 +221,8 @@ def __google_scrape_dailydata(stock, start_date, end_date):
             if skipfirst:
                 skipfirst = False
                 continue
-            date = __google_format_date(p[0])
+            if len(p[0]) != 10: # not correct format
+                date = __google_format_date(p[0])
             if __google_invalid_price(stock, p):
                 dd = get_manual_dailydata(stock,date)
                 if dd is None:
