@@ -15,6 +15,8 @@ from RSI import RSIResults
 # - create scraper to scrape tables in increments of 30 days for indices
 
 
+Log.log_start("daily-update")
+
 # Populate Stocks table
 Log.log_segment("Updating Stocks table")
 Updater.update_index_stocks()

@@ -7,7 +7,10 @@ import Email
 
 
 LOG_DIR = "logs"
-__LOG_FILE = LOG_DIR+"/"+"program.log"
+__LOG_FILE = LOG_DIR+"/"+indentifier_str+".log"
+
+errors = []
+identifier_str = "log-not-started"
 
 
 
@@ -24,12 +27,12 @@ def __log(msg):
 	with open(__LOG_FILE,'a') as f:
 		f.write("{}\n".format(msg))
 
+
+
 def log(msg):
 	__log(msg)
 
 
-
-errors = []
 
 def log_error(err_msg, shutdown=False):
 	__log("ERROR ------------------------------------------------------")
@@ -69,18 +72,5 @@ def log_segment(segment_title):
 
 
 
-def log_start(start_msg):
-	__log("")
-	__log("")
-	__log("============================================================")
-	__log(start_msg)
-	__log("============================================================")
-
-
-
-def log_stop(stop_msg):
-	__log("")
-	__log("============================================================")
-	__log(stop_msg)
-	__log("============================================================")
-	__log("")
+def log_start(log_indentifier_str):
+	identifier_str = log_indentifier_str
