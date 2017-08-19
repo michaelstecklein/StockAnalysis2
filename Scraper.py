@@ -193,16 +193,19 @@ def __google_scrape_dailydata(stock, start_date, end_date):
             end_mon = end_date.month
         stock.ticker = __google_encode_chars(stock.ticker)
         url_outline = "https://www.google.com/finance/historical?output=csv&q={}%3A{}&startdate={}+{}+{}&enddate={}+{}+{}"
-		ticker_indices = { 'NASDAQ', 'NYSE', 'NYSEARCA', 'INDEXDJX', 'INDEXSP', '' }
-		prefix_found = False
-		while not prefix_found and i < len(ticker_indices): # find an index prefix that works
-			url = url_outline.format(prefix,stock.ticker,start_mon,start_day,year,end_mon,end_day,year)
-			if prefix is '':
-				url = url.replace("%3A","")
-			page = requests.get(url)
-        	if not "Response [4" in str(page): # didn't fail
-				prefix_found = True
-		if not prefix_found:
+        ticker_prefixes = [ 'NASDAQ', 'NYSE', 'NYSEARCA', 'INDEXDJX', 'INDEXSP', '' ]
+        prefix_found = False
+        i = 0
+        while not prefix_found and i < len(ticker_prefixes): # find an index prefix that works
+            prefix = ticker_prefixes[i]
+            url = url_outline.format(prefix,stock.ticker,start_mon,start_day,year,end_mon,end_day,year)
+            if prefix is '':
+                url = url.replace("%3A","")
+            page = requests.get(url)
+            if not "Response [4" in str(page): # didn't fail
+                prefix_found = True
+            i += 1
+        if not prefix_found:
             csvpath = __manual_csv_path(stock)
             if csvpath is None:
                 Log.log_error("Error scraping Google for {} {} to {}, please add manual .csv for the stock.".format(stock,start_date,end_date), shutdown=True)
