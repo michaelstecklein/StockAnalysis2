@@ -6,11 +6,11 @@ import Email
 
 
 
-LOG_DIR = "logs"
-__LOG_FILE = LOG_DIR+"/"+indentifier_str+".log"
-
 errors = []
 identifier_str = "log-not-started"
+
+LOG_DIR = "logs"
+__LOG_FILE = LOG_DIR+"/"+identifier_str+".log"
 
 
 
