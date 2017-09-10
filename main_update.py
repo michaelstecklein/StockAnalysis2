@@ -12,7 +12,7 @@ from RSI import RSIResults
 # - add manual data for all stocks w/ entries with a 0 volume, delete those entries, anmd rerun
 # - create function to save all data into csvs
 # - backup databases
-# - create scraper to scrape tables in increments of 30 days for indices
+# - remove dependency on csv files for stockdates (for like KO, IBM, GE)
 
 
 Log.log_start("daily-update")
