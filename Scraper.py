@@ -2,6 +2,7 @@
 @author: michaelstecklein
 '''
 import requests
+import urllib
 import os.path
 import csv
 import time
@@ -68,7 +69,7 @@ def scrape_NYSE():
 def __manual_market_dates(stock,start_date,end_date):
     csvpath = __manual_csv_path(stock)
     if csvpath is None:
-        Log.log_error("Error scraping Google for {} {} to {}, please add manual .csv for the stock.".format(stock,start_date,end_date), shutdown=True)
+        Log.log_error("Error scraping manually for {} {} to {}, please add manual .csv for the stock.".format(stock,start_date,end_date), shutdown=True)
     f = open(csvpath, "r")
     page = f.readlines()
     dates = []
@@ -113,9 +114,8 @@ def scrape_market_dates(start_date=StockData.createSDate(MiscInfo.FIRST_MARKET_D
     # assert that other stocks' dates agree
     for ticker in MiscInfo.MARKET_DATE_REFERENCE_STOCKS[1:]:
         stock = StockData.Stock(ticker,"")
-        #dd = scrape_dailydata(stock,start_date=start_date,end_date=today)
-        days = __manual_market_dates(stock,start_date,today)
-        #days = __online_market_dates(stock,start_date,today)
+        #days = __manual_market_dates(stock,start_date,today)
+        days = __online_market_dates(stock,start_date,today)
         for day in days:
             if day not in dates:
                 Log.log_error("market date {} not in agreement between reference stocks {}".format(day.date,MiscInfo.MARKET_DATE_REFERENCE_STOCKS),shutdown=True)
@@ -137,7 +137,7 @@ def scrape_dailydata(stock, start_date=None, end_date=Database.get_last_market_d
             start_date = stock.last_update
     if start_date > end_date:
         return None
-    return __google_scrape_dailydata(stock, start_date, end_date)
+    return __av_scrape_dailydata(stock, start_date, end_date)
 
 def __manual_csv_path(stock):
     '''Manually download csv's from Yahoo Finance. Returns the opened file.'''
@@ -159,7 +159,57 @@ def get_manual_dailydata(stock, date):
     return None
 
 
-# Google will be used to scrape stock data
+# Alpha Vantage API for stock data
+# API Key: KJJTVJT1GLZNVZ5I
+def __av_scrape_dailydata(stock, start_date, end_date):
+    time.sleep(2) # to slow down our queries to the requested rate
+    # Build URL
+    function = "TIME_SERIES_DAILY"
+    symbol = stock.ticker
+    outputsize = "compact" if (start_date.getDayNumber()-end_date.getDayNumber() < 100) else "full"
+    datatype = "csv"
+    apikey = "KJJTVJT1GLZNVZ5I"
+    url = "https://www.alphavantage.co/query?function={}&symbol={}&outputsize={}&datatype={}&apikey={}".format(function,symbol,outputsize,datatype,apikey)
+    if __PRINT_URLS:
+        print "URL: ",url
+    # Get csv from URL
+    '''
+    page = requests.get(url)
+    if "Response [4" in str(page): # failed
+        csvpath = __manual_csv_path(stock)
+        if csvpath is None:
+            Log.log_error("Error scraping Alpha Vantage for {} {} to {}, please add manual .csv for the stock.".format(stock,start_date,end_date), shutdown=True)
+        f = open(csvpath, "r")
+        page = f.readlines()
+        f.close()
+    print "PAGE.TEXT ", page.text
+    prices = csv.reader(page.text.splitlines())
+    '''
+    response = urllib.urlopen(url)
+    page = response.read()
+    prices = list(csv.reader(page.splitlines(), delimiter=","))
+    if not prices or "Error Message" in page: # failed
+        csvpath = __manual_csv_path(stock)
+        if csvpath is None:
+            Log.log_error("Error scraping Alpha Vantage for {} {} to {}, please add manual .csv for the stock.".format(stock,start_date,end_date), shutdown=False)
+            return []
+        f = open(csvpath, "r")
+        page = f.readlines()
+        f.close()
+    # Parse into dailydata list
+    skipfirst = True
+    dailydata = []
+    for p in prices:
+        if skipfirst:
+            skipfirst = False
+            continue
+        dailydata.append( StockData.SDailyData(stock,StockData.createSDate(p[0]),float(p[1]),float(p[2]),float(p[3]),float(p[4]),int(p[5])) )
+    dailydata.reverse() # data comes descending by date
+    return dailydata
+
+
+
+# Google added new defenses against bots, can't use it anymore...
 
 google_date_dict = {'Jan':'01','Feb':'02','Mar':'03','Apr':'04','May':'05','Jun':'06','Jul':'07','Aug':'08','Sep':'09','Oct':'10','Nov':'11','Dec':'12'} 
 def __google_format_date(date_in):
